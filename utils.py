@@ -48,7 +48,6 @@ def de_obfuscate(keyword, response):
     try:
         # turbo => 4097 token limit; setting cut-off as 6000 characters ~= 1500-2000 tokens for input
         response_lst = split_string(response, 6000)
-        print(response_lst)
         temp_response = ""
         for split_input in response_lst:
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
