@@ -7,6 +7,7 @@ First add your OpenAI API key to a file titled `api-key.txt`, and your Discord t
 ```bash
 pip install openai
 pip install discord
+pip install bs4
 ```
 
 ## Using the bot
