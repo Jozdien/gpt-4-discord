@@ -14,11 +14,12 @@ MAX_MESSAGE_LENGTH = 2000
 
 from public_modes import SYSTEM_MESSAGES_PUBLIC
 try:
-    from root_modes import SYSTEM_MESSAGES_ROOT
+    from root_modes import SYSTEM_MESSAGES_ROOT_OBFUSCATE, SYSTEM_MESSAGES_ROOT_NORMAL
 except:
-    SYSTEM_MESSAGES_ROOT = {}
+    SYSTEM_MESSAGES_ROOT_OBFUSCATE = {}
+    SYSTEM_MESSAGES_ROOT_NORMAL = {}
 
-SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC, **SYSTEM_MESSAGES_ROOT}
+SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 
 @bot.event
 async def on_message(message):
@@ -98,7 +99,7 @@ async def on_message(message):
         if keyword == "/timestamp":
             await message.channel.send(f"<t:{utils.convert_to_unix(response)}:t>")
             return
-        if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role"] or keyword in SYSTEM_MESSAGES_ROOT:
+        if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
             response = utils.de_obfuscate(keyword, response)
             if response == -1:
                 await message.channel.send("An error occurred while de-obfuscating the text, please check my logs!")
