@@ -24,6 +24,8 @@ async def handle_help(message, MAX_MESSAGE_LENGTH):
 
 def parse_input_content(input_content, SYSTEM_MESSAGES):
     keyword, user_msg = None, input_content
+    if input_content in SYSTEM_MESSAGES:
+        return input_content, ""
     if " " in input_content and input_content.split(" ")[0] in SYSTEM_MESSAGES:
         keyword, user_msg = input_content.split(" ", 1)
     
