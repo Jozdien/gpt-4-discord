@@ -2,7 +2,6 @@ __pycache__/
 droplet_pass.txt
 bot_log.txt
 bot_log_droplet.txt
-bot_root.py
 api-key.txt
 discord-token.txt
 root_modes.py
