@@ -22,6 +22,13 @@ async def handle_help(message, MAX_MESSAGE_LENGTH):
         await message.channel.send(content[i:i + MAX_MESSAGE_LENGTH])
     return
 
+async def handle_error(err_msg, thread, bot):
+    await message.reply(err_msg)
+    await message.remove_reaction('\N{HOURGLASS}', bot.user)
+    await message.add_reaction('❌')
+    if thread:
+        await message.channel.edit(locked=True, archived=True)
+
 def parse_input_content(input_content, SYSTEM_MESSAGES):
     keyword, user_msg = None, input_content
     if input_content in SYSTEM_MESSAGES:

@@ -13,3 +13,8 @@ pip install bs4
 ## Using the bot
 
 For more detailed usage on how to use the bot, I suggest running it and sending the message `@GPT-4 /help`.
+
+# TO-DO
+
+- Test suite
+- Multi-message prompt chaining
