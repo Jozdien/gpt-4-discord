@@ -43,10 +43,14 @@ async def on_message(message):
             thread = message.channel
         else:
             try:
-                thread = await message.create_thread(name=input_content, auto_archive_duration=60)
+                if len(input_content) > 100:
+                    name = input_content[:100]
+                else:
+                    name = input_content
+                thread = await message.create_thread(name=name, auto_archive_duration=60)
             except Exception as e:
                 print(repr(e))
-                await message.channel.send("Oops, something went wrong when I was crafting a thread. Check my logs!")
+                await message.reply("Oops, something went wrong when I was crafting a thread. Check my logs!")
                 return
 
         MAX_TOKENS = 1028
@@ -121,7 +125,7 @@ async def on_message(message):
         utils.log(message, messages, response, completion)
 
         if keyword == "/timestamp":
-            await message.channel.send(f"<t:{utils.convert_to_unix(response)}:t>")
+            await message.reply(f"<t:{utils.convert_to_unix(response)}:t>")
             await message.remove_reaction('\N{HOURGLASS}', bot.user)
             await thread.delete()
             return
