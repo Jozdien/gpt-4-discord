@@ -31,6 +31,7 @@ async def on_message(message):
 
     if bot.user in message.mentions:
         print("Request received!")
+        utils.log_request(message)
         input_content = message.content.replace(f'<@{bot.user.id}>', '').strip()
         
         if input_content.startswith("/help"):
@@ -122,6 +123,7 @@ async def on_message(message):
         if keyword == "/timestamp":
             await message.channel.send(f"<t:{utils.convert_to_unix(response)}:t>")
             await message.remove_reaction('\N{HOURGLASS}', bot.user)
+            await thread.delete()
             return
         if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
             response = utils.de_obfuscate(keyword, response)

@@ -64,11 +64,19 @@ def de_obfuscate(keyword, response):
             
     return deobfuscated_response
 
+def log_request(message):
+    user_name = message.author.name
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+
+    with open('message_log.txt', "a") as file:
+        file.write("User: {0}\n\nTimestamp: {1}\n\nMessage\n```\n{2}\n```\n\n---\n\n".format(user_name, timestamp, message.content))
+
 def log(message, messages, response, completion):
     user_name = message.author.name
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     with open('bot_log.txt', "a") as file:
-        file.write("User: {0}\n\nPrompt\n```\n{1}\n```\n\nGeneration\n```\n{2}\n```\n\nServer request\n```\n{3}\n```\n\n---\n\n".format(user_name, messages, response, completion))
+        file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(user_name, timestamp, messages, response, completion))
 
 def process_lw(user_msg):
     try:
