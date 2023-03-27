@@ -18,3 +18,5 @@ For more detailed usage on how to use the bot, I suggest running it and sending 
 
 - Test suite
 - Multi-message prompt chaining
+- Multiple API Keys
+- Stream outputs

@@ -47,7 +47,7 @@ async def on_message(message):
             if(isinstance(message.channel, discord.channel.Thread)):
                 thread = True
 
-            MAX_TOKENS = 1028
+            MAX_TOKENS = 2000
             if message.author.name == "Jozdien":
                 MAX_TOKENS = 6000
 
@@ -110,7 +110,7 @@ async def on_message(message):
                 await message.reply(f"<t:{utils.convert_to_unix(response)}:t>")
                 await message.remove_reaction('\N{HOURGLASS}', bot.user)
                 return
-            if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
+            if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role", "/no-filter-stack"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
                 response = utils.de_obfuscate(keyword, response)
                 if response == -1:
                     utils.handle_error("An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
