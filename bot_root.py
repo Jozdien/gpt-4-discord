@@ -1,9 +1,13 @@
 import utils
 import discord
+import itertools
 from discord.ext import commands
 
 with open("discord-token.txt", "r") as f:
     DISCORD_TOKEN = f.read().strip()
+API_KEYS = utils.read_file_to_list('./api-key.txt')
+# Cycle through different API keys for rate limiting reasons
+api_key_cycle = itertools.cycle(API_KEYS)
 
 intents = discord.Intents.default()
 intents.typing = False
@@ -61,9 +65,9 @@ async def on_message(message):
                         if len(decoded_content) < 30000:
                             input_content = f"{input_content}\n\n{decoded_content}"
                             # Rough estimate of limit of output tokens to not go over the limit
-                            MAX_TOKENS = 8000 - len(decoded_content) // 4
+                            MAX_TOKENS = 8000 - len(decoded_content) // 3
                         else:
-                            await utils.handle_error("Sorry, the text file you attached is too long. Please send a file under 20,000 characters.", thread, bot)
+                            await utils.handle_error(message, "Sorry, the text file you attached is too long. Please send a file under 20,000 characters.", thread, bot)
                             return
                     # If attachment is an image, if we have multimodal GPT-4
                     else:
@@ -78,28 +82,29 @@ async def on_message(message):
             if keyword == "/lw":
                 user_msg = utils.process_lw(user_msg)
                 if user_msg == -1:
-                    await utils.handle_error("Please give me a link to summarize, I cannot read your messages otherwise :(", thread, bot)
+                    await utils.handle_error(message, "Please give me a link to summarize, I cannot read your messages otherwise :(", thread, bot)
                     return
                 elif user_msg == -2:
-                    await utils.handle_error("Sorry, the web parser failed, please try again!", thread, bot)
+                    await utils.handle_error(message, "Sorry, the web parser failed, please try again!", thread, bot)
                     return
                 MAX_TOKENS = 8000 - len(user_msg) // 4
 
             messages.append({"role": "user", "content": user_msg})
 
             try:
-                completion = utils.create_response(messages, MAX_TOKENS)
+                api_key = next(api_key_cycle)
+                completion = utils.create_response(api_key, messages, MAX_TOKENS)
             except Exception as e:
                 # No multimodal access to GPT-4
                 if repr(e) == "TypeError('Object of type bytes is not JSON serializable')":
-                    await utils.handle_error("Sorry, you don't have multimodal access with me yet.", thread, bot)
+                    await utils.handle_error(message, "Sorry, you don't have multimodal access with me yet.", thread, bot)
                     return
                 # Rate limiting
                 if repr(e) == "RateLimitError(message='The server had an error while processing your request. Sorry about that!', http_status=429, request_id=None)":
-                    await utils.handle_error("Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!", thread, bot)
+                    await utils.handle_error(message, "Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!", thread, bot)
                     return
                 print(repr(e))
-                await utils.handle_error("An error has occurred while generating the response, please check my logs!", thread, bot)
+                await utils.handle_error(message, "An error has occurred while generating the response, please check my logs!", thread, bot)
                 return
 
             response = completion.choices[0].message.content
@@ -113,7 +118,7 @@ async def on_message(message):
             if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role", "/no-filter-stack"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
                 response = utils.de_obfuscate(keyword, response)
                 if response == -1:
-                    utils.handle_error("An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
+                    utils.handle_error(message, "An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
                     return
 
             if thread:
@@ -129,7 +134,7 @@ async def on_message(message):
             await message.remove_reaction('\N{HOURGLASS}', bot.user)
         except Exception as e:
             print(repr(e))
-            await utils.handle_error("Something *very* unexpected has happened, please check my logs", False, bot)
+            await utils.handle_error(message, "Something *very* unexpected has happened, please check my logs", False, bot)
             return
 
 bot.run(DISCORD_TOKEN)

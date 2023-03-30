@@ -5,9 +5,15 @@ import requests
 import datetime
 from bs4 import BeautifulSoup
 
-openai.api_key_path = './api-key.txt'
+# openai.api_key_path = './api-key.txt'
 
-def create_response(messages, MAX_TOKENS, model="gpt-4"):
+def read_file_to_list(file_name):
+    with open(file_name, 'r') as file:
+        lines = file.readlines()
+    return [line.strip() for line in lines]
+
+def create_response(api_key, messages, MAX_TOKENS, model="gpt-4"):
+    openai.api_key = api_key
     completion = openai.ChatCompletion.create(
         model=model,
         messages=messages,
@@ -22,7 +28,7 @@ async def handle_help(message, MAX_MESSAGE_LENGTH):
         await message.channel.send(content[i:i + MAX_MESSAGE_LENGTH])
     return
 
-async def handle_error(err_msg, thread, bot):
+async def handle_error(message, err_msg, thread, bot):
     await message.reply(err_msg)
     await message.remove_reaction('\N{HOURGLASS}', bot.user)
     await message.add_reaction('❌')

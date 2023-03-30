@@ -19,4 +19,10 @@ For more detailed usage on how to use the bot, I suggest running it and sending 
 - Test suite
 - Multi-message prompt chaining
 - Multiple API Keys
-- Stream outputs
+- Stream outputs(?)
+- Count tokens in-script
+- Currently if the message gets deleted before output message is sent, just throws an error.
+
+## To-do modes
+
+- Generate information and put it into code that converts into graphs
