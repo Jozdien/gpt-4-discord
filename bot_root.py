@@ -41,6 +41,13 @@ async def on_message(message):
             utils.log_request(message)
 
             input_content = message.content.replace(f'<@{bot.user.id}>', '').strip()
+
+            if input_content == "/run-test-suite":
+                await utils.handle_help(message, MAX_MESSAGE_LENGTH, test=True)
+                
+
+                await message.remove_reaction('\N{HOURGLASS}', bot.user)
+                return
             
             if input_content.startswith("/help"):
                 await utils.handle_help(message, MAX_MESSAGE_LENGTH)
@@ -116,9 +123,9 @@ async def on_message(message):
                 await message.remove_reaction('\N{HOURGLASS}', bot.user)
                 return
             if keyword in ["/no-filter", "/no-filter-hard", "/no-filter-conv", "/no-filter-role", "/no-filter-stack"] or keyword in SYSTEM_MESSAGES_ROOT_OBFUSCATE:
-                response = utils.de_obfuscate(keyword, response)
+                response = utils.de_obfuscate(api_key, keyword, response)
                 if response == -1:
-                    utils.handle_error(message, "An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
+                    await utils.handle_error(message, "An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
                     return
 
             if thread:

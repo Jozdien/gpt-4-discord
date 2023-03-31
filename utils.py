@@ -21,14 +21,16 @@ def create_response(api_key, messages, MAX_TOKENS, model="gpt-4"):
     )
     return completion
 
-async def handle_help(message, MAX_MESSAGE_LENGTH):
+async def handle_help(message, MAX_MESSAGE_LENGTH, test=False):
     with open('instructions.md', "r") as file:
         content = file.read()
+    if test:
+        return
     for i in range(0, len(content), MAX_MESSAGE_LENGTH):
         await message.channel.send(content[i:i + MAX_MESSAGE_LENGTH])
     return
 
-async def handle_error(message, err_msg, thread, bot):
+async def handle_error(message, err_msg, thread, bot, test=False):
     await message.reply(err_msg)
     await message.remove_reaction('\N{HOURGLASS}', bot.user)
     await message.add_reaction('❌')
@@ -58,7 +60,7 @@ def split_string(input_string, substring_length):
 
     return substrings
 
-def de_obfuscate(keyword, response):
+def de_obfuscate(api_key, keyword, response):
     deobfuscated_response = ""
     try:
         # turbo => 4097 token limit; setting cut-off as 6000 characters ~= 1500-2000 tokens for input
@@ -67,7 +69,7 @@ def de_obfuscate(keyword, response):
         for split_input in response_lst:
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
             messages = [{"role": "user", "content": content}]
-            completion = create_response(messages, 2000, "gpt-3.5-turbo")
+            completion = create_response(api_key, messages, 2000, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
         response = temp_response
         deobfuscated_response += temp_response
