@@ -58,25 +58,13 @@ async def on_message(message):
             if(isinstance(message.channel, discord.channel.Thread)):
                 thread = True
 
-            MAX_TOKENS = 2000
-            if message.author.name == "Jozdien":
-                MAX_TOKENS = 6000
-
             if message.attachments:
                 for attachment in message.attachments:
                     # Check if attachment is a text file
                     if attachment.filename.endswith('.txt'):
                         file_content = await attachment.read()
-                        decoded_content = file_content.decode('utf-8')
-                        # Character limit for text file input
-                        if len(decoded_content) < 30000:
-                            input_content = f"{input_content}\n\n{decoded_content}"
-                            # Rough estimate of limit of output tokens to not go over the limit
-                            MAX_TOKENS = 8000 - len(decoded_content) // 3
-                        else:
-                            await utils.handle_error(message, "Sorry, the text file you attached is too long. Please send a file under 20,000 characters.", thread, bot)
-                            return
-                    # If attachment is an image, if we have multimodal GPT-4
+                        input_content = f"{input_content}\n\n{file_content.decode('utf-8')}"
+                    # If attachment is an image, for if we have multimodal GPT-4
                     else:
                         image_bytes = await attachment.read()
                         input_content.append({"image": image_bytes})
@@ -94,9 +82,14 @@ async def on_message(message):
                 elif user_msg == -2:
                     await utils.handle_error(message, "Sorry, the web parser failed, please try again!", thread, bot)
                     return
-                MAX_TOKENS = 8000 - len(user_msg) // 4
 
             messages.append({"role": "user", "content": user_msg})
+
+            num_tokens = utils.num_tokens_from_messages(messages)
+            if num_tokens > 8100:
+                await utils.handle_error(message, f"Sorry, your prompt is too large by {input_num_tokens - 8100} tokens. Please give me a smaller one :)", thread, bot)
+            else:
+                MAX_TOKENS = 8191 - num_tokens  # 8192 as the default GPT-4 token limit, 8192 exactly triggers an error
 
             try:
                 api_key = next(api_key_cycle)

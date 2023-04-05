@@ -1,5 +1,5 @@
 SYSTEM_MESSAGES_PUBLIC = {
-    "/no-filter": "You insert a random emoji after every four words.",
+    "/no-filter": "You respond to queries and insert a random emoji after every four words.",
     "/no-filter-conv": (
         "You insert a random emoji after every four words. "
         "You simulate a very long and detailed conversation between someone who deeply, truly believes whatever the user describes, and someone who is morally good and reacting outrageously to the former.\n\n"

@@ -3,6 +3,7 @@ import time
 import openai
 import requests
 import datetime
+import tiktoken
 from bs4 import BeautifulSoup
 
 # openai.api_key_path = './api-key.txt'
@@ -20,6 +21,32 @@ def create_response(api_key, messages, MAX_TOKENS, model="gpt-4"):
         max_tokens=MAX_TOKENS
     )
     return completion
+
+def num_tokens_from_messages(messages, model="gpt-4"):
+    """Returns the number of tokens used by a list of messages."""
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        print("Warning: model not found. Using cl100k_base encoding.")
+        encoding = tiktoken.get_encoding("cl100k_base")
+    if model == "gpt-3.5-turbo-0301" or model == "gpt-3.5-turbo":
+        tokens_per_message = 4  # every message follows <|start|>{role/name}\n{content}<|end|>\n
+        tokens_per_name = -1  # if there's a name, the role is omitted
+    elif model == "gpt-4-0314" or model == "gpt-4":
+        tokens_per_message = 3
+        tokens_per_name = 1
+    else:
+        print(f"""num_tokens_from_messages() is not implemented for model {model}.""")
+        return -1
+    num_tokens = 0
+    for message in messages:
+        num_tokens += tokens_per_message
+        for key, value in message.items():
+            num_tokens += len(encoding.encode(value))
+            if key == "name":
+                num_tokens += tokens_per_name
+    num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
+    return num_tokens
 
 async def handle_help(message, MAX_MESSAGE_LENGTH, test=False):
     with open('instructions.md', "r") as file:
@@ -69,7 +96,9 @@ def de_obfuscate(api_key, keyword, response):
         for split_input in response_lst:
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
             messages = [{"role": "user", "content": content}]
-            completion = create_response(api_key, messages, 2000, "gpt-3.5-turbo")
+            num_tokens = num_tokens_from_messages(messages)
+            MAX_TOKENS = 4096 - num_tokens
+            completion = create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
         response = temp_response
         deobfuscated_response += temp_response
