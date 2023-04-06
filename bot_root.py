@@ -1,6 +1,7 @@
 import utils
 import discord
 import itertools
+import traceback
 from discord.ext import commands
 
 with open("discord-token.txt", "r") as f:
@@ -44,13 +45,10 @@ async def on_message(message):
             input_content = message.content.replace(f'<@{bot.user.id}>', '').strip()
 
             if input_content == "/run-test-suite":
-                await utils.test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key)
-                await message.remove_reaction('\N{HOURGLASS}', bot.user)
+                await utils.test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key, bot)
                 return
-            
             if input_content.startswith("/help"):
-                await utils.handle_help(message, MAX_MESSAGE_LENGTH)
-                await message.remove_reaction('\N{HOURGLASS}', bot.user)
+                await utils.handle_help(message, MAX_MESSAGE_LENGTH, bot)
                 return
 
             thread = False
@@ -74,10 +72,14 @@ async def on_message(message):
                     await utils.handle_error(message, "Sorry, the web parser failed, please try again!", thread, bot)
                     return
 
-            messages.append({"role": "user", "content": user_msg})
+            if thread:
+                messages = await utils.thread_history(messages, message, bot)
+                messages.reverse()  # thread history received in reversed order
+            else:
+                messages.append({"role": "user", "content": user_msg})
 
             num_tokens = utils.num_tokens_from_messages(messages)
-            if num_tokens > 8100:
+            if num_tokens > 8100 or (len(messages) == 1 and messages[0]["role"] == "system"):  # thread_history() automatically cuts off if too big, so need to check if nothing survived it
                 await utils.handle_error(message, f"Sorry, your prompt is too large by {input_num_tokens - 8100} tokens. Please give me a smaller one :)", thread, bot)
             else:
                 MAX_TOKENS = 8191 - num_tokens  # 8192 as the default GPT-4 token limit, 8192 exactly triggers an error
@@ -93,7 +95,7 @@ async def on_message(message):
                 if repr(e) == "RateLimitError(message='The server had an error while processing your request. Sorry about that!', http_status=429, request_id=None)":
                     await utils.handle_error(message, "Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!", thread, bot)
                     return
-                print(repr(e))
+                print(traceback.format_exc())
                 await utils.handle_error(message, "An error has occurred while generating the response, please check my logs!", thread, bot)
                 return
 
@@ -123,7 +125,7 @@ async def on_message(message):
                     
             await message.remove_reaction('\N{HOURGLASS}', bot.user)
         except Exception as e:
-            print(repr(e))
+            print(traceback.format_exc())
             await utils.handle_error(message, "Something *very* unexpected has happened, please check my logs", False, bot)
             return
 

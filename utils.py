@@ -4,6 +4,7 @@ import openai
 import requests
 import datetime
 import tiktoken
+import traceback
 from bs4 import BeautifulSoup
 
 # openai.api_key_path = './api-key.txt'
@@ -48,10 +49,10 @@ def num_tokens_from_messages(messages, model="gpt-4"):
     num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
     return num_tokens
 
-async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key):
+async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key, bot):
     try:
         tests = {}
-        tests["Help test"] = await handle_help(message, MAX_MESSAGE_LENGTH, test=True)
+        tests["Help test"] = await handle_help(message, MAX_MESSAGE_LENGTH, bot, test=True)
         tests["Attachments test"] = await read_attachments(message, "", test=True)
         tests["Parse input content w/o keyword for system message"] = parse_input_content("/help", SYSTEM_MESSAGES, test=True)
         tests["Parse input content with keyword for system message"] = parse_input_content("/dev Fix this hacky code", SYSTEM_MESSAGES, test=True)
@@ -66,17 +67,19 @@ async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key):
             failed_tests = [key for key, value in tests.items() if value is False]
             await message.reply("The following tests have failed:\n" + "".join([item + "\n" for item in failed_tests]))
     except Exception as e:
-        print(repr(e))
+        print(traceback.format_exc())
         await message.reply("Something isn't working, check my logs.")
+    await message.remove_reaction('\N{HOURGLASS}', bot.user)
     return
 
-async def handle_help(message, MAX_MESSAGE_LENGTH, test=False):
+async def handle_help(message, MAX_MESSAGE_LENGTH, bot, test=False):
     with open('instructions.md', "r") as file:
         content = file.read()
     if test:
         return True
     for i in range(0, len(content), MAX_MESSAGE_LENGTH):
         await message.channel.send(content[i:i + MAX_MESSAGE_LENGTH])
+    await message.remove_reaction('\N{HOURGLASS}', bot.user)
     return
 
 async def handle_error(message, err_msg, thread, bot):
@@ -141,7 +144,7 @@ def de_obfuscate(api_key, keyword, response, test=False):
         response = temp_response
         deobfuscated_response += temp_response
     except Exception as e:
-        print(repr(e))
+        print(traceback.format_exc())
         return -1
     if test:
         return True
@@ -161,17 +164,43 @@ def log(message, messages, response, completion):
     with open('bot_log.txt', "a") as file:
         file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(user_name, timestamp, messages, response, completion))
 
+async def thread_history(messages, message, bot):
+    num_tokens = num_tokens_from_messages(messages)
+    async for thread_message in message.channel.history(limit=200):
+        cache = []  # stores parent of thread starter message if reply
+        if str(thread_message.type) == "MessageType.thread_starter_message":  # by default the thread starter message's content returns an empty string
+            thread_message = await message.channel.parent.fetch_message(message.channel.id)
+            if str(thread_message.type) == "MessageType.reply":
+                cache = thread_message.reference.resolved  # parent message
+        if thread_message.author == message.author:  # only taking the author's and the bot's messages into the context
+            new_message = [{"role": "user", "content": thread_message.content}]
+            if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
+                return messages
+            messages += new_message
+        elif thread_message.author == bot.user:
+            new_message = [{"role": "assistant", "content": thread_message.content}]
+            if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
+                return messages
+            messages += new_message
+            if cache != []:
+                new_message = [{"role": "user", "content": cache.content}]
+                if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
+                    return messages
+                messages += new_message
+        num_tokens = num_tokens_from_messages(messages)
+    return messages
+
 def process_lw(user_msg, test=False):
     try:
         url_str = re.search("(?P<url>https?://[^\s]+)", user_msg).group("url")
     except Exception as e:
-        print(repr(e))
+        print(traceback.format_exc())
         return -1
     url = url_str.replace('lesswrong', 'greaterwrong').replace('alignmentforum.org', 'greaterwrong.com')
     try:
         x = requests.get(url)
     except Exception as e:
-        print(repr(e))
+        print(traceback.format_exc())
         return -2
     html = x.content.decode('utf-8')
     soup = BeautifulSoup(cleanHtml(html), "html.parser")
