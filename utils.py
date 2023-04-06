@@ -160,20 +160,23 @@ def log_request(message):
 def log(message, messages, response, completion):
     user_name = message.author.name
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    messages_str = "\n".join(str(element) for element in messages)
 
     with open('bot_log.txt', "a") as file:
-        file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(user_name, timestamp, messages, response, completion))
+        file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(
+            user_name, timestamp, messages_str, response, completion))
 
 async def thread_history(messages, message, bot):
     num_tokens = num_tokens_from_messages(messages)
     async for thread_message in message.channel.history(limit=200):
-        cache = []  # stores parent of thread starter message if reply
+        start_message_flag = False
         if str(thread_message.type) == "MessageType.thread_starter_message":  # by default the thread starter message's content returns an empty string
             thread_message = await message.channel.parent.fetch_message(message.channel.id)
-            if str(thread_message.type) == "MessageType.reply":
-                cache = thread_message.reference.resolved  # parent message
+            start_message_flag = True
         if thread_message.author == message.author:  # only taking the author's and the bot's messages into the context
             new_message = [{"role": "user", "content": thread_message.content}]
+            if thread_message.content == '':
+                continue
             if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
                 return messages
             messages += new_message
@@ -182,8 +185,11 @@ async def thread_history(messages, message, bot):
             if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
                 return messages
             messages += new_message
-            if cache != []:
-                new_message = [{"role": "user", "content": cache.content}]
+            if str(thread_message.type) == "MessageType.reply":  # need the prompt for the bot response for proper context-setting
+                parent = thread_message.reference.resolved
+                if parent.author == message.author and not start_message_flag:  # prevent double adding of messages that were sent by the author, parent of start message won't get added
+                    continue
+                new_message = [{"role": "user", "content": parent.content}]
                 if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
                     return messages
                 messages += new_message
