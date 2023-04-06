@@ -31,9 +31,6 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    if message.guild.name == "Cyborgism" and message.channel.name != "prompt-libraries":
-        return
-
     if bot.user in message.mentions:
         print("Request received!")
         await message.add_reaction('\N{HOURGLASS}')
