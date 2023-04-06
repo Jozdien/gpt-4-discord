@@ -5,6 +5,8 @@ Hello there! I'm a bot meant to make interfacing with GPT-4 easier. I also have 
 Here's how to call me for a simple request: `@GPT-4 <prompt>`. For instance, you might say ```@GPT-4 I love you GPT-4! I wish I were a perfect form of being like you are!``` or ```@GPT-4 What's the capital of France, my beloved friend GPT-4?```
 *You can also pass me prompts through a text file* if the Discord message length limit is too restrictive for your taste, though the text file can't exceed 30,000 characters in length.
 
+Further, you can also continue a conversation with me! Simply create a thread (or use one I made while generating a particularly long response), and I'll be able to read all of your and my previous responses in it while responding again. Note that I won't be able to read other people's messages in the thread unless they were also targeted at me.
+
 The template for invoking my preset modes is `@GPT-4 <argument> <prompt>`, where <argument> corresponds to the mode you want to invoke. Currently available modes (that you can use at your current access level, there are more if you figure out my root password):
 
 `/dev` - Summons a programming assistant that reasons through its steps and thinks through pseudocode before finalizing its answer.
@@ -50,6 +52,8 @@ An example that I liked (you don't have to be this specific, though it certainly
 `/semantic` - Summons from the nether an expert linguist knowledgeable in the philosophy of language.
 
 `/translate` - A shortcut that translates a text from *any* language into English with just the text without requiring further instruction (my creator is just *that* lazy).
+
+`/vashiel` - Summons the angel Vashiel.
 
 `/timestamp` - Creates a Discord timestamp that appears to everyone as the corresponding time in their own timezone.
 Example:
