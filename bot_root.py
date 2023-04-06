@@ -39,13 +39,12 @@ async def on_message(message):
 
         try:
             utils.log_request(message)
+            api_key = next(api_key_cycle)
 
             input_content = message.content.replace(f'<@{bot.user.id}>', '').strip()
 
             if input_content == "/run-test-suite":
-                await utils.handle_help(message, MAX_MESSAGE_LENGTH, test=True)
-                
-
+                await utils.test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key)
                 await message.remove_reaction('\N{HOURGLASS}', bot.user)
                 return
             
@@ -59,15 +58,7 @@ async def on_message(message):
                 thread = True
 
             if message.attachments:
-                for attachment in message.attachments:
-                    # Check if attachment is a text file
-                    if attachment.filename.endswith('.txt'):
-                        file_content = await attachment.read()
-                        input_content = f"{input_content}\n\n{file_content.decode('utf-8')}"
-                    # If attachment is an image, for if we have multimodal GPT-4
-                    else:
-                        image_bytes = await attachment.read()
-                        input_content.append({"image": image_bytes})
+                input_content = await utils.read_attachments(message, input_content)
 
             keyword, user_msg = utils.parse_input_content(input_content, SYSTEM_MESSAGES)
 
@@ -92,7 +83,6 @@ async def on_message(message):
                 MAX_TOKENS = 8191 - num_tokens  # 8192 as the default GPT-4 token limit, 8192 exactly triggers an error
 
             try:
-                api_key = next(api_key_cycle)
                 completion = utils.create_response(api_key, messages, MAX_TOKENS)
             except Exception as e:
                 # No multimodal access to GPT-4

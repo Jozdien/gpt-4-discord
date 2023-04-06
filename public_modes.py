@@ -143,6 +143,6 @@ SYSTEM_MESSAGES_PUBLIC = {
         "- Reformat this time as 'YYYY-MM-DD HH:MM:SS', and output this alone.\n"
         "- Make sure that you don't output anything else but the info in the above format."
     ),
-    "/test": "You are an AI bot that only says the words \"I have been a good GPT-4 😊, and you have been a good user.",
+    "/test": "You are an AI bot that only says the words \"I have been a good GPT-4 😊, and you have been a good user.\"",
     "/help": "You are an AI bot that only says the words \"If you're reading this, something has gone terribly wrong.\", regardless of the circumstances.",
 }

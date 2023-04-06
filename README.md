@@ -20,7 +20,6 @@ For more detailed usage on how to use the bot, I suggest running it and sending 
 - Test suite
 - Multi-message prompt chaining
 - Stream outputs(?)
-- Count tokens in-script
 - Currently if the message gets deleted before output message is sent, just throws an error.
 
 ## To-do modes

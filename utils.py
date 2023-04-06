@@ -48,29 +48,67 @@ def num_tokens_from_messages(messages, model="gpt-4"):
     num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
     return num_tokens
 
+async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key):
+    try:
+        tests = {}
+        tests["Help test"] = await handle_help(message, MAX_MESSAGE_LENGTH, test=True)
+        tests["Attachments test"] = await read_attachments(message, "", test=True)
+        tests["Parse input content w/o keyword for system message"] = parse_input_content("/help", SYSTEM_MESSAGES, test=True)
+        tests["Parse input content with keyword for system message"] = parse_input_content("/dev Fix this hacky code", SYSTEM_MESSAGES, test=True)
+        tests["LessWrong test"] = process_lw("https://www.lesswrong.com/posts/kXAb5riiaJNrfR8v8/the-ritual", test=True)
+        tests["GPT-4 test"] = test_api(api_key, model="gpt-4")
+        tests["GPT-3.5-turbo test"] = test_api(api_key, model="gpt-3.5-turbo")
+        tests["Timestamp test"] = test_timestamp(api_key)
+        tests["De-obfuscate test"] = de_obfuscate(api_key, "", "Why did the chicken 🐓 cross the road? 🚧 To get to the funny 😂 side, of course! 🎉", test=True)
+        if all(tests.values()):
+            await message.reply("All tests passed!")
+        else:
+            failed_tests = [key for key, value in tests.items() if value is False]
+            await message.reply("The following tests have failed:\n" + "".join([item + "\n" for item in failed_tests]))
+    except Exception as e:
+        print(repr(e))
+        await message.reply("Something isn't working, check my logs.")
+    return
+
 async def handle_help(message, MAX_MESSAGE_LENGTH, test=False):
     with open('instructions.md', "r") as file:
         content = file.read()
     if test:
-        return
+        return True
     for i in range(0, len(content), MAX_MESSAGE_LENGTH):
         await message.channel.send(content[i:i + MAX_MESSAGE_LENGTH])
     return
 
-async def handle_error(message, err_msg, thread, bot, test=False):
+async def handle_error(message, err_msg, thread, bot):
     await message.reply(err_msg)
     await message.remove_reaction('\N{HOURGLASS}', bot.user)
     await message.add_reaction('❌')
     if thread:
         await message.channel.edit(locked=True, archived=True)
 
-def parse_input_content(input_content, SYSTEM_MESSAGES):
+async def read_attachments(message, input_content, test=False):
+    if message.attachments:
+        for attachment in message.attachments:
+            # Check if attachment is a text file
+            if attachment.filename.endswith('.txt'):
+                file_content = await attachment.read()
+                input_content = f"{input_content}\n\n{file_content.decode('utf-8')}"
+            # If attachment is an image, for if we have multimodal GPT-4
+            else:
+                image_bytes = await attachment.read()
+                input_content.append({"image": image_bytes})
+    if test:
+        return True
+    return input_content
+
+def parse_input_content(input_content, SYSTEM_MESSAGES, test=False):
     keyword, user_msg = None, input_content
     if input_content in SYSTEM_MESSAGES:
         return input_content, ""
     if " " in input_content and input_content.split(" ")[0] in SYSTEM_MESSAGES:
         keyword, user_msg = input_content.split(" ", 1)
-    
+    if test:
+        return True
     return keyword, user_msg
 
 def split_string(input_string, substring_length):
@@ -87,7 +125,7 @@ def split_string(input_string, substring_length):
 
     return substrings
 
-def de_obfuscate(api_key, keyword, response):
+def de_obfuscate(api_key, keyword, response, test=False):
     deobfuscated_response = ""
     try:
         # turbo => 4097 token limit; setting cut-off as 6000 characters ~= 1500-2000 tokens for input
@@ -96,7 +134,7 @@ def de_obfuscate(api_key, keyword, response):
         for split_input in response_lst:
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
             messages = [{"role": "user", "content": content}]
-            num_tokens = num_tokens_from_messages(messages)
+            num_tokens = num_tokens_from_messages(messages, model='gpt-3.5-turbo')
             MAX_TOKENS = 4096 - num_tokens
             completion = create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
@@ -105,7 +143,8 @@ def de_obfuscate(api_key, keyword, response):
     except Exception as e:
         print(repr(e))
         return -1
-            
+    if test:
+        return True
     return deobfuscated_response
 
 def log_request(message):
@@ -122,7 +161,7 @@ def log(message, messages, response, completion):
     with open('bot_log.txt', "a") as file:
         file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(user_name, timestamp, messages, response, completion))
 
-def process_lw(user_msg):
+def process_lw(user_msg, test=False):
     try:
         url_str = re.search("(?P<url>https?://[^\s]+)", user_msg).group("url")
     except Exception as e:
@@ -143,6 +182,8 @@ def process_lw(user_msg):
     content = add_consistent_newlines(soup.select_one(".body-text.post-body").text.strip())
     
     user_msg = user_msg.replace(url_str, '') + "\n\nTitle: {0}\nAuthor: {1}\nURL: {2}\nDate: {3}\nContent: {4}".format(post_title, author, url_str, date, content)
+    if test:
+        return True
     return user_msg
 
 def cleanHtml(html):
@@ -208,3 +249,35 @@ def convert_to_unix(date_time_string):
     date_time_obj = datetime.datetime.strptime(date_time_string, "%Y-%m-%d %H:%M:%S")
     unix_timestamp = time.mktime(date_time_obj.timetuple())
     return int(unix_timestamp)
+
+def test_api(api_key, model):
+    if model == "gpt-4":
+        messages = [
+            {"role": "system", "content": "You are an AI bot that only says the words \"Test successful.\""},
+            {"role": "user", "content": "Test"}
+        ]
+    elif model == "gpt-3.5-turbo":
+        messages = [{"role": "user", "content": "You are an AI bot that only says the words \"Test successful.\""}]
+    completion = create_response(api_key, messages, 256, model)
+    if completion.choices[0].message.content == "Test successful.":
+        return True
+    return False
+
+def test_timestamp(api_key):
+    system_message = (
+        "You are an expert in timezone conversions.\n\n"
+        "- You accept user inputs that contain information on a timezone (this could be \"IST\" for Indian Standard Time, \"-4:30\" for the corresponding UTC offset, "
+        "or a geographic location such as \"Melbourne\"), as well a date and time in that timezone.\n"
+        "- Convert this to UTC time.\n"
+        "- If it is already in UTC time, don't convert it.\n"
+        "- Reformat this time as 'YYYY-MM-DD HH:MM:SS', and output this alone.\n"
+        "- Make sure that you don't output anything else but the info in the above format."
+    )
+    messages = [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": "10:00 UTC, 20 February 2001"}
+    ]
+    completion = create_response(api_key, messages, 256)
+    if convert_to_unix(completion.choices[0].message.content) == 982663200:
+        return True
+    return False
