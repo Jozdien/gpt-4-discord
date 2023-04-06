@@ -151,20 +151,20 @@ def de_obfuscate(api_key, keyword, response, test=False):
     return deobfuscated_response
 
 def log_request(message):
-    user_name = message.author.name
+    user = message.author
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
     with open('message_log.txt', "a") as file:
-        file.write("User: {0}\n\nTimestamp: {1}\n\nMessage\n```\n{2}\n```\n\n---\n\n".format(user_name, timestamp, message.content))
+        file.write("User: {0}\n\nTimestamp: {1}\n\nMessage\n```\n{2}\n```\n\n---\n\n".format(user, timestamp, message.content))
 
 def log(message, messages, response, completion):
-    user_name = message.author.name
+    user = message.author
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     messages_str = "\n".join(str(element) for element in messages)
 
     with open('bot_log.txt', "a") as file:
         file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(
-            user_name, timestamp, messages_str, response, completion))
+            user, timestamp, messages_str, response, completion))
 
 async def thread_history(messages, message, bot):
     num_tokens = num_tokens_from_messages(messages)
