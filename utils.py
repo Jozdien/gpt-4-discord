@@ -138,7 +138,7 @@ def de_obfuscate(api_key, keyword, response, test=False):
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
             messages = [{"role": "user", "content": content}]
             num_tokens = num_tokens_from_messages(messages, model='gpt-3.5-turbo')
-            MAX_TOKENS = 4096 - num_tokens
+            MAX_TOKENS = 4095 - num_tokens
             completion = create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
         response = temp_response
@@ -194,6 +194,9 @@ async def thread_history(messages, message, bot):
                     return messages
                 messages += new_message
         num_tokens = num_tokens_from_messages(messages)
+    # system messages work better when they're leading the messages
+    if messages[0]["role"] == "system":
+        messages = messages[1:] + messages[:1]
     return messages
 
 def process_lw(user_msg, test=False):
