@@ -138,7 +138,7 @@ def de_obfuscate(api_key, keyword, response, test=False):
             content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
             messages = [{"role": "user", "content": content}]
             num_tokens = num_tokens_from_messages(messages, model='gpt-3.5-turbo')
-            MAX_TOKENS = 4095 - num_tokens
+            MAX_TOKENS = 4080 - num_tokens  # sometimes the num_token calculation isn't exact, hence leeway
             completion = create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
         response = temp_response
@@ -182,7 +182,7 @@ async def thread_history(messages, message, bot):
             messages += new_message
         elif thread_message.author == bot.user:
             new_message = [{"role": "assistant", "content": thread_message.content}]
-            if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
+            if (num_tokens + num_tokens_from_messages(new_message)) > 7500:
                 return messages
             messages += new_message
             if str(thread_message.type) == "MessageType.reply":  # need the prompt for the bot response for proper context-setting
@@ -190,7 +190,7 @@ async def thread_history(messages, message, bot):
                 if parent.author == message.author and not start_message_flag:  # prevent double adding of messages that were sent by the author, parent of start message won't get added
                     continue
                 new_message = [{"role": "user", "content": parent.content}]
-                if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
+                if (num_tokens + num_tokens_from_messages(new_message)) > 7500:
                     return messages
                 messages += new_message
         num_tokens = num_tokens_from_messages(messages)

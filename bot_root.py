@@ -1,3 +1,5 @@
+import os
+import time
 import utils
 import discord
 import itertools
@@ -7,8 +9,7 @@ from discord.ext import commands
 with open("discord-token.txt", "r") as f:
     DISCORD_TOKEN = f.read().strip()
 API_KEYS = utils.read_file_to_list('./api-key.txt')
-# Cycle through different API keys for rate limiting reasons
-api_key_cycle = itertools.cycle(API_KEYS)
+api_key_cycle = itertools.cycle(API_KEYS)  # Cycle through different API keys for rate limiting reasons
 
 intents = discord.Intents.default()
 intents.typing = False
@@ -26,13 +27,21 @@ except:
 
 SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 
+last_response_time = 0  # rate-limiting variable for public users
+
 @bot.event
 async def on_message(message):
+    global last_response_time
+
     if message.author == bot.user:
         return
 
     if bot.user in message.mentions:
+        current_time = time.time()
+        if message.guild.name == "Cyborgism" and message.channel.name != "gpt-4-faraday-cage" and (current_time - last_response_time) < 30:
+            return  # rate-limiting to 30 seconds between generation and next prompt
         print("Request received!")
+
         await message.add_reaction('\N{HOURGLASS}')
 
         try:
@@ -60,6 +69,10 @@ async def on_message(message):
             messages = []
             if keyword:
                 messages.append({"role": "system", "content": SYSTEM_MESSAGES[keyword]})
+            if keyword == "/dev-aware":  # a mode that allows the bot access to its own source code
+                with open("bot_root.py", "r") as f:
+                    source_code = f.read()
+                messages[0]["content"] = messages[0]["content"].format(source_code=source_code)
             if keyword == "/lw":
                 user_msg = utils.process_lw(user_msg)
                 if user_msg == -1:
@@ -76,10 +89,11 @@ async def on_message(message):
                 messages.append({"role": "user", "content": user_msg})
 
             num_tokens = utils.num_tokens_from_messages(messages)
-            if num_tokens > 8100 or (len(messages) == 1 and messages[0]["role"] == "system"):  # thread_history() automatically cuts off if too big, so need to check if nothing survived it
+            if num_tokens > 8100 or (len(messages) == 1 and messages[0]["role"] == "system") or messages == []:  # thread_history() automatically cuts off if too big, check if nothing survived it
                 await utils.handle_error(message, f"Sorry, your prompt is too large by {input_num_tokens - 8100} tokens. Please give me a smaller one :)", thread, bot)
             else:
-                MAX_TOKENS = 8191 - num_tokens  # 8192 as the default GPT-4 token limit, 8192 exactly triggers an error
+                print(f"Number of tokens in the prompt: {num_tokens}")
+                MAX_TOKENS = 8180 - num_tokens  # 8192 as the default GPT-4 token limit, sometimes num_tokens isn't exact, hence leeway; also 8192 exactly triggers an error
 
             try:
                 completion = utils.create_response(api_key, messages, MAX_TOKENS)
@@ -121,6 +135,7 @@ async def on_message(message):
                     await thread.send(response[i:i + MAX_MESSAGE_LENGTH])
                     
             await message.remove_reaction('\N{HOURGLASS}', bot.user)
+            last_response_time = current_time
         except Exception as e:
             print(traceback.format_exc())
             await utils.handle_error(message, "Something *very* unexpected has happened, please check my logs", False, bot)
