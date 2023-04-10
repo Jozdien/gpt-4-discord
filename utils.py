@@ -14,12 +14,13 @@ def read_file_to_list(file_name):
         lines = file.readlines()
     return [line.strip() for line in lines]
 
-def create_response(api_key, messages, MAX_TOKENS, model="gpt-4"):
+def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
     openai.api_key = api_key
     completion = openai.ChatCompletion.create(
         model=model,
         messages=messages,
-        max_tokens=MAX_TOKENS
+        max_tokens=MAX_TOKENS,
+        stream=stream
     )
     return completion
 
@@ -316,6 +317,8 @@ def test_timestamp(api_key):
         {"role": "user", "content": "10:00 UTC, 20 February 2001"}
     ]
     completion = create_response(api_key, messages, 256)
+    # This test incidentally only works if you're in a certain timezone! 
+    # Otherwise, you can find the right one with something like https://www.epochconverter.com/
     if convert_to_unix(completion.choices[0].message.content) == 982663200:
         return True
     return False

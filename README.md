@@ -5,10 +5,7 @@ First add your OpenAI API key to a file titled `api-key.txt`, and your Discord t
 ## Installing dependencies
 
 ```bash
-pip install openai
-pip install discord
-pip install bs4
-pip install tiktoken
+pip install -r requirements.txt
 ```
 
 ## Using the bot
