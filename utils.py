@@ -135,7 +135,7 @@ def de_obfuscate(api_key, keyword, response, test=False):
         response_lst = split_string(response, 6000)
         temp_response = ""
         for split_input in response_lst:
-            content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\"\"\"\n{split_input}\n\"\"\""
+            content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\n{split_input}"
             messages = [{"role": "user", "content": content}]
             num_tokens = num_tokens_from_messages(messages, model='gpt-3.5-turbo')
             MAX_TOKENS = 4080 - num_tokens  # sometimes the num_token calculation isn't exact, hence leeway

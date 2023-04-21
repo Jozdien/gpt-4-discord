@@ -38,7 +38,7 @@ async def on_message(message):
 
     if bot.user in message.mentions:
         current_time = time.time()
-        if message.guild.name == "Cyborgism" and message.channel.name != "gpt-4-faraday-cage" and (current_time - last_response_time) < 30:
+        if message.guild.name == "Cyborgism" and message.channel.name not in ["gpt-4-faraday-cage", "4-box"] and (current_time - last_response_time) < 30:
             return  # rate-limiting to 30 seconds between generation and next prompt
         print("Request received!")
 
@@ -85,6 +85,8 @@ async def on_message(message):
             if thread:
                 messages = await utils.thread_history(messages, message, bot)
                 messages.reverse()  # thread history received in reversed order
+                if messages[-1]["role"] == "system":
+                    messages.insert(0, messages.pop(-1))
             else:
                 messages.append({"role": "user", "content": user_msg})
 
