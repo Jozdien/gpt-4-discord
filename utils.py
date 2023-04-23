@@ -115,6 +115,93 @@ def parse_input_content(input_content, SYSTEM_MESSAGES, test=False):
         return True
     return keyword, user_msg
 
+async def response_errors(e, thread, bot):
+    # No multimodal access to GPT-4
+    if repr(e) == "TypeError('Object of type bytes is not JSON serializable')":
+        await handle_error(message, "Sorry, you don't have multimodal access with me yet.", thread, bot)
+        return
+    # Rate limiting
+    if repr(e) == "RateLimitError(message='The server had an error while processing your request. Sorry about that!', http_status=429, request_id=None)":
+        await handle_error(message, "Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!", thread, bot)
+        return
+    print(traceback.format_exc())
+    await handle_error(message, "An error has occurred while generating the response, please check my logs!", thread, bot)
+    return
+
+async def bot_reply(response, message, input_content, thread, MAX_MESSAGE_LENGTH):
+    if thread:
+        thread = message.channel
+    for i in range(0, len(response), MAX_MESSAGE_LENGTH):
+        if i == 0:
+            sent_message = await message.reply(response[i:i + MAX_MESSAGE_LENGTH])
+        else:
+            if not thread:
+                thread = await sent_message.create_thread(name=input_content[:100], auto_archive_duration=60)
+            await thread.send(response[i:i + MAX_MESSAGE_LENGTH])
+    return
+
+async def bot_reply_stream(response_stream, message, messages, input_content, thread, MAX_MESSAGE_LENGTH):
+    last_change_time = time.time()
+    change_freq = 1  # changes every second; limited to 5 edits per 5 seconds, so can't go lower than this
+
+    """
+    last_message => discord.Message object
+    message_to_add => the message we are building up between edits that we will want to add to the last message
+    last_message_content => the content of last_message
+
+    response => generator that progressively receives more generated tokens
+    """
+    # the first element is an empty string, the second is the first token. Can't have an empty completion so this is OK
+    stream_event = next(response_stream)
+    log_stream(stream_event, new=True)
+    stream_log = [stream_event]
+    message_to_add = "" + stream_event['choices'][0]['delta'].get('content', '')  # empty because it is an assistant delta, not a content one
+
+    stream_event = next(response_stream)
+    log_stream(stream_event)
+    stream_log.append(stream_event)
+    message_to_add += stream_event['choices'][0]['delta'].get('content', '')
+
+    completion = message_to_add  # the total response once the stream terminates, for logging purposes
+    last_message = await message.reply(message_to_add)
+    message_to_add, last_message_content = "", message_to_add
+
+    """
+    Now, we loop through all subsequent events in the generator, and:
+        we get the event_token with event['choices'][0]['delta'].get('content', '')
+        we check if we should create a new message depending on whether the length of last_message_content + message_to_add + event_token exceeds MAX_MESSAGE_LENGTH.
+            if so, we create a new message for the event_token by itself and update the last_change_time, and edit the last_message to include the message_to_add. 
+            but if there has been no thread created yet, we create a new thread under the first message to put this event_token.
+        if we shouldn't create a new message, we only edit the current message with the new message_to_add thing, which we don't do everytime: 
+            we only do it when time.time() - last_change_time >= change_freq.
+    once the loop through the generator is over, we have a remaining message_to_add, which we know fits into the last_message, so we add it.
+    """
+    for stream_event in response_stream:
+        log_stream(stream_event)
+        stream_log.append(stream_event)
+        time.sleep(0.01)
+        event_token = stream_event['choices'][0]['delta'].get('content', '')
+        completion += event_token
+
+        if len(last_message_content + message_to_add + event_token) > MAX_MESSAGE_LENGTH:
+            if not thread:
+                thread = await last_message.create_thread(name = input_content[:100], auto_archive_duration = 60)
+            await last_message.edit(content=last_message_content + message_to_add)
+            last_message = await thread.send(event_token)
+            message_to_add, last_message_content = "", event_token
+            last_change_time = time.time()
+        else:
+            message_to_add += event_token
+            if time.time() - last_change_time >= change_freq:
+                await last_message.edit(content=last_message_content + message_to_add)
+                message_to_add, last_message_content = "", last_message_content + message_to_add
+                last_change_time = time.time()
+
+    if message_to_add != "":
+        await last_message.edit(content=last_message_content + message_to_add)
+
+    log(message, messages, completion, stream_log, stream=True)
+
 def split_string(input_string, substring_length):
     substrings = []
 
@@ -158,12 +245,22 @@ def log_request(message):
     with open('message_log.txt', "a") as file:
         file.write("User: {0}\n\nTimestamp: {1}\n\nMessage\n```\n{2}\n```\n\n---\n\n".format(user, timestamp, message.content))
 
-def log(message, messages, response, completion):
+def log_stream(stream_event, new=False):
+    mode = "w" if new else "a"
+    with open('stream_log.txt', mode) as file:
+        file.write("{0}\n\n".format(stream_event))
+
+def log(message, messages, response, completion, stream=False):
     user = message.author
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
     messages_str = "\n".join(str(element) for element in messages)
+    if stream:
+        completion = '\n'.join(str(x) for x in completion)
 
     with open('bot_log.txt', "a") as file:
+        file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\n---\n\n".format(
+            user, timestamp, messages_str, response))
+    with open('full_log.txt', "a") as file:
         file.write("User: {0}\n\nTimestamp: {1}\n\nPrompt\n```\n{2}\n```\n\nGeneration\n```\n{3}\n```\n\nServer request\n```\n{4}\n```\n\n---\n\n".format(
             user, timestamp, messages_str, response, completion))
 
