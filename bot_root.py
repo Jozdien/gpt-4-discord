@@ -29,6 +29,7 @@ except:
 SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_PUBLIC_NORMAL, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 SYSTEM_MESSAGES_OBFUSCATE = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_OBFUSCATE}
 STREAM_EXCEPTIONS = list(SYSTEM_MESSAGES_PUBLIC_OBFUSCATE.keys()) + list(SYSTEM_MESSAGES_ROOT_OBFUSCATE.keys()) + ["/timestamp"]
+ARG_LIST = {"--stream": True}
 
 last_response_time = 0  # rate-limiting variable for public users
 
@@ -55,7 +56,7 @@ async def on_message(message):
             thread = isinstance(message.channel, discord.channel.Thread)
 
             if input_content == "/run-test-suite":
-                await utils.test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key, bot)
+                await utils.test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, ARG_LIST, api_key, bot)
                 return
             if input_content.startswith("/help"):
                 await utils.handle_help(message, MAX_MESSAGE_LENGTH, bot)
@@ -64,7 +65,9 @@ async def on_message(message):
             if message.attachments:
                 input_content = await utils.read_attachments(message, input_content)
 
-            keyword, user_msg = utils.parse_input_content(input_content, SYSTEM_MESSAGES)
+            keyword, args, user_msg = utils.parse_input_content(input_content, SYSTEM_MESSAGES, ARG_LIST)
+
+            BOT_STREAMS = args["--stream"]
 
             messages = []
             if keyword:
@@ -100,7 +103,7 @@ async def on_message(message):
             # if BOT_STREAMS set to False, or if keyword is one that requires modification after generation, no streaming
             if keyword in STREAM_EXCEPTIONS or not BOT_STREAMS:
                 try:
-                    completion = utils.create_response(api_key, messages, MAX_TOKENS)
+                    completion = await utils.create_response(api_key, messages, MAX_TOKENS)
                     response = completion.choices[0].message.content
                 except Exception as e:
                     utils.response_errors(e, thread, bot)
@@ -113,17 +116,16 @@ async def on_message(message):
                     await message.remove_reaction('\N{HOURGLASS}', bot.user)
                     return
                 if keyword in SYSTEM_MESSAGES_OBFUSCATE:
-                    response = utils.de_obfuscate(api_key, keyword, response, thread, bot)
+                    response = await utils.de_obfuscate(api_key, keyword, response)
                     if response == -1:
                         await utils.handle_error(message, "An error occurred while de-obfuscating the text, please check my logs!", thread, bot)
                         return
 
                 await utils.bot_reply(response, message, input_content, thread, MAX_MESSAGE_LENGTH)
-            
             # streaming the output
             else:
                 try:
-                    response_stream = utils.create_response(api_key, messages, MAX_TOKENS, stream=True)
+                    response_stream = await utils.create_response(api_key, messages, MAX_TOKENS, stream=True)
                 except Exception as e:
                     utils.response_errors(e, thread, bot)
                     return

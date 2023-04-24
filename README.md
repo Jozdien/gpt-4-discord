@@ -14,9 +14,8 @@ For more detailed usage on how to use the bot, I suggest running it and sending 
 
 # TO-DO
 
-- Stream outputs(?)
 - Check if file attachments are read in a thread
-- Make GPT function async?
+- Find way to split code properly
 
 ## To-do modes
 

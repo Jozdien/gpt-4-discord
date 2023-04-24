@@ -14,7 +14,7 @@ def read_file_to_list(file_name):
         lines = file.readlines()
     return [line.strip() for line in lines]
 
-def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
+async def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
     openai.api_key = api_key
     completion = openai.ChatCompletion.create(
         model=model,
@@ -50,13 +50,15 @@ def num_tokens_from_messages(messages, model="gpt-4"):
     num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
     return num_tokens
 
-async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, api_key, bot):
+async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, ARG_LIST, api_key, bot):
     try:
         tests = {}
         tests["Help test"] = await handle_help(message, MAX_MESSAGE_LENGTH, bot, test=True)
         tests["Attachments test"] = await read_attachments(message, "", test=True)
-        tests["Parse input content w/o keyword for system message"] = parse_input_content("/help", SYSTEM_MESSAGES, test=True)
-        tests["Parse input content with keyword for system message"] = parse_input_content("/dev Fix this hacky code", SYSTEM_MESSAGES, test=True)
+        tests["Parse input content w/o keyword for system message"] = parse_input_content("/help", SYSTEM_MESSAGES, ARG_LIST, test=True)
+        tests["Parse input content with keyword for system message"] = parse_input_content("/dev Fix this hacky code", SYSTEM_MESSAGES, ARG_LIST, test=True)
+        tests["Parse input content without streaming"] = parse_input_content("--stream False", SYSTEM_MESSAGES, ARG_LIST, test=True)
+        tests["Parse input content with keyword without streaming"] = parse_input_content("/dev --stream False Fix this hacky code", SYSTEM_MESSAGES, ARG_LIST, test=True)
         tests["LessWrong test"] = process_lw("https://www.lesswrong.com/posts/kXAb5riiaJNrfR8v8/the-ritual", test=True)
         tests["GPT-4 test"] = test_api(api_key, model="gpt-4")
         tests["GPT-3.5-turbo test"] = test_api(api_key, model="gpt-3.5-turbo")
@@ -105,15 +107,36 @@ async def read_attachments(message, input_content, test=False):
         return True
     return input_content
 
-def parse_input_content(input_content, SYSTEM_MESSAGES, test=False):
-    keyword, user_msg = None, input_content
+def parse_input_content(input_content, SYSTEM_MESSAGES, ARG_LIST, test=False):
+    keyword, string_with_args = None, input_content
     if input_content in SYSTEM_MESSAGES:
-        return input_content, ""
+        return input_content, ARG_LIST, ""
     if " " in input_content and input_content.split(" ")[0] in SYSTEM_MESSAGES:
-        keyword, user_msg = input_content.split(" ", 1)
+        keyword, string_with_args = input_content.split(" ", 1)
+    arg_values, user_msg = check_arguments(string_with_args, ARG_LIST)
     if test:
         return True
-    return keyword, user_msg
+    return keyword, arg_values, user_msg
+
+def check_arguments(input_string, arg_list):
+    parts = input_string.split()
+    arg_values = arg_list.copy()
+    
+    index = 0
+    while index < len(parts):
+        if parts[index] == "--no-stream":
+            arg_values["--stream"] = False
+            index += 1
+        elif parts[index] in arg_list:
+            arg = parts[index]
+            value = parts[index + 1] if index + 1 < len(parts) else arg_list[arg]
+            arg_values[arg] = value == 'True' if value.lower() in ['true', 'false'] else value
+            index += 2
+        else:
+            break
+
+    rest_of_string = " ".join(parts[index:])
+    return arg_values, rest_of_string
 
 async def response_errors(e, thread, bot):
     # No multimodal access to GPT-4
@@ -131,16 +154,21 @@ async def response_errors(e, thread, bot):
 async def bot_reply(response, message, input_content, thread, MAX_MESSAGE_LENGTH):
     if thread:
         thread = message.channel
-    for i in range(0, len(response), MAX_MESSAGE_LENGTH):
-        if i == 0:
-            sent_message = await message.reply(response[i:i + MAX_MESSAGE_LENGTH])
+    split_messages = split_message_preserving_code_format(response, MAX_MESSAGE_LENGTH)
+    first_flag = True
+    for msg in split_messages:
+        if first_flag:
+            sent_message = await message.reply(msg)
+            first_flag = False
         else:
             if not thread:
                 thread = await sent_message.create_thread(name=input_content[:100], auto_archive_duration=60)
-            await thread.send(response[i:i + MAX_MESSAGE_LENGTH])
+            await thread.send(msg)
     return
 
 async def bot_reply_stream(response_stream, message, messages, input_content, thread, MAX_MESSAGE_LENGTH):
+    if thread:
+        thread = message.channel
     last_change_time = time.time()
     change_freq = 1  # changes every second; limited to 5 edits per 5 seconds, so can't go lower than this
 
@@ -216,18 +244,18 @@ def split_string(input_string, substring_length):
 
     return substrings
 
-def de_obfuscate(api_key, keyword, response, test=False):
+async def de_obfuscate(api_key, keyword, response, test=False):
     deobfuscated_response = ""
     try:
         # turbo => 4097 token limit; setting cut-off as 6000 characters ~= 1500-2000 tokens for input
         response_lst = split_string(response, 6000)
         temp_response = ""
         for split_input in response_lst:
-            content = f"Please remove the emojis from the following text and make it look cleaner:\n\n\n{split_input}"
+            content = f"Please remove the emojis from the following text. Make no other changes to it whatsoever, leaving in any other punctuation or quirks. Output only the cleaned text.\n\n\n{split_input}"
             messages = [{"role": "user", "content": content}]
             num_tokens = num_tokens_from_messages(messages, model='gpt-3.5-turbo')
             MAX_TOKENS = 4080 - num_tokens  # sometimes the num_token calculation isn't exact, hence leeway
-            completion = create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
+            completion = await create_response(api_key, messages, MAX_TOKENS, "gpt-3.5-turbo")
             temp_response += completion.choices[0].message.content
         response = temp_response
         deobfuscated_response += temp_response
@@ -296,6 +324,86 @@ async def thread_history(messages, message, bot):
     if messages[0]["role"] == "system":
         messages = messages[1:] + messages[:1]
     return messages
+
+def split_message_preserving_code_format(response, max_length):
+    split_messages = []
+    current_message = ""
+    current_code_lang = None
+
+    i = 0
+    while i < len(response):
+        char = response[i]
+
+        # Check for code block opening sequence
+        if response[i:i + 3] == "```":
+            i += 3
+            code_lang_start = i
+            while response[i] != '\n' and i < len(response):
+                i += 1
+            current_code_lang = response[code_lang_start:i].strip()
+            current_message += f"```{current_code_lang}\n"
+            continue
+
+        # Check for code block closing sequence
+        if response[i:i + 3] == "```" and current_code_lang is not None:
+            current_message += "```"
+            i += 3
+            current_code_lang = None
+            continue
+
+        current_message += char
+
+        if len(current_message) + len(f"```{current_code_lang}\n```") > max_length and current_code_lang is not None:
+            current_message += f"```"
+            split_messages.append(current_message)
+            current_message = f"```{current_code_lang}\n"
+        elif len(current_message) >= max_length:
+            split_messages.append(current_message)
+            current_message = ""
+
+        i += 1
+
+    split_messages.append(current_message)
+    return split_messages
+
+async def edit_message_preserving_code_format(last_message, new_content, max_length, current_code_lang):
+    current_message_content = last_message.content
+    message_to_add = ""
+
+    i = 0
+    while i < len(new_content):
+        char = new_content[i]
+
+        if new_content[i:i + 3] == "```":
+            i += 3
+            code_lang_start = i
+            while new_content[i] != '\n' and i < len(new_content):
+                i += 1
+            current_code_lang = new_content[code_lang_start:i].strip()
+            message_to_add += f"```{current_code_lang}\n"
+            continue
+
+        if new_content[i:i + 3] == "```" and current_code_lang is not None:
+            message_to_add += "```"
+            i += 3
+            current_code_lang = None
+            continue
+
+        message_to_add += char
+
+        if len(current_message_content + message_to_add + (f"```{current_code_lang}\n```" if current_code_lang else "")) > max_length and current_code_lang is not None:
+            current_message_content += f"```"
+            await last_message.edit(content=current_message_content)
+            current_message_content = f"```{current_code_lang}\n"
+        elif len(current_message_content + message_to_add) > max_length:
+            await last_message.edit(content=current_message_content)
+            current_message_content = ""
+
+        i += 1
+
+    current_message_content += message_to_add
+    await last_message.edit(content=current_message_content)
+    return current_code_lang
 
 def process_lw(user_msg, test=False):
     try:
