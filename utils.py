@@ -16,7 +16,7 @@ def read_file_to_list(file_name):
 
 async def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
     openai.api_key = api_key
-    completion = openai.ChatCompletion.create(
+    completion = await openai.ChatCompletion.acreate(
         model=model,
         messages=messages,
         max_tokens=MAX_TOKENS,
