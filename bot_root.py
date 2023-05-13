@@ -29,7 +29,7 @@ except:
 SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_PUBLIC_NORMAL, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 SYSTEM_MESSAGES_OBFUSCATE = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_OBFUSCATE}
 STREAM_EXCEPTIONS = list(SYSTEM_MESSAGES_PUBLIC_OBFUSCATE.keys()) + list(SYSTEM_MESSAGES_ROOT_OBFUSCATE.keys()) + ["/timestamp"]
-ARG_LIST = {"--stream": True}
+ARG_LIST = {"--stream": True, "--force-truncate": False}
 
 last_response_time = 0  # rate-limiting variable for public users
 
@@ -95,7 +95,12 @@ async def on_message(message):
 
             num_tokens = utils.num_tokens_from_messages(messages)
             if num_tokens > 8100 or (len(messages) == 1 and messages[0]["role"] == "system") or messages == []:  # thread_history() automatically cuts off if too big, check if nothing survived it
-                await utils.handle_error(message, f"Sorry, your prompt is too large by {num_tokens - 8100} tokens. Please give me a smaller one :)", thread, bot)
+                if args["--force-truncate"]:
+                    messages = utils.truncate_user_content(messages, num_tokens - 7700)
+                    num_tokens = 7700
+                    MAX_TOKENS = 480
+                else:
+                    await utils.handle_error(message, f"Sorry, your prompt is too large by {num_tokens - 8100} tokens. Please give me a smaller one :)", thread, bot)
             else:
                 print(f"Number of tokens in the prompt: {num_tokens}")
                 MAX_TOKENS = 8180 - num_tokens  # 8192 as the default GPT-4 token limit, sometimes num_tokens isn't exact, hence leeway; also 8192 exactly triggers an error
@@ -106,7 +111,7 @@ async def on_message(message):
                     completion = await utils.create_response(api_key, messages, MAX_TOKENS)
                     response = completion.choices[0].message.content
                 except Exception as e:
-                    utils.response_errors(e, thread, bot)
+                    await utils.response_errors(e, message, thread, bot)
                     return
 
                 utils.log(message, messages, response, completion)
@@ -127,7 +132,7 @@ async def on_message(message):
                 try:
                     response_stream = await utils.create_response(api_key, messages, MAX_TOKENS, stream=True)
                 except Exception as e:
-                    utils.response_errors(e, thread, bot)
+                    await utils.response_errors(e, message, thread, bot)
                     return
 
                 await utils.bot_reply_stream(response_stream, message, messages, input_content, thread, MAX_MESSAGE_LENGTH)

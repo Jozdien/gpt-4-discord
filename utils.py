@@ -50,6 +50,21 @@ def num_tokens_from_messages(messages, model="gpt-4"):
     num_tokens += 3  # every reply is primed with <|start|>assistant<|message|>
     return num_tokens
 
+def truncate_user_content(obj, n):
+    for element in reversed(obj):
+        if element['role'] == 'user':
+            total_tokens = num_tokens_from_messages([element])
+            characters_to_remove = 1
+            while characters_to_remove <= len(element['content']):
+                truncated_content = element['content'][:-characters_to_remove]
+                remaining_tokens = num_tokens_from_messages([{'role': 'user', 'content': truncated_content}])
+                if remaining_tokens == (total_tokens - n):
+                    element['content'] = truncated_content
+                    break
+                characters_to_remove += 1
+            break
+    return obj
+
 async def test_suite(message, MAX_MESSAGE_LENGTH, SYSTEM_MESSAGES, ARG_LIST, api_key, bot):
     try:
         tests = {}
@@ -127,6 +142,9 @@ def check_arguments(input_string, arg_list):
         if parts[index] == "--no-stream":
             arg_values["--stream"] = False
             index += 1
+        elif parts[index] == "--force-truncate":
+            arg_values["--force-truncate"] = True
+            index += 1
         elif parts[index] in arg_list:
             arg = parts[index]
             value = parts[index + 1] if index + 1 < len(parts) else arg_list[arg]
@@ -138,7 +156,7 @@ def check_arguments(input_string, arg_list):
     rest_of_string = " ".join(parts[index:])
     return arg_values, rest_of_string
 
-async def response_errors(e, thread, bot):
+async def response_errors(e, message, thread, bot):
     # No multimodal access to GPT-4
     if repr(e) == "TypeError('Object of type bytes is not JSON serializable')":
         await handle_error(message, "Sorry, you don't have multimodal access with me yet.", thread, bot)
@@ -154,16 +172,23 @@ async def response_errors(e, thread, bot):
 async def bot_reply(response, message, input_content, thread, MAX_MESSAGE_LENGTH):
     if thread:
         thread = message.channel
-    split_messages = split_message_preserving_code_format(response, MAX_MESSAGE_LENGTH)
-    first_flag = True
-    for msg in split_messages:
-        if first_flag:
-            sent_message = await message.reply(msg)
-            first_flag = False
+    for i in range(0, len(response), MAX_MESSAGE_LENGTH):
+        if i == 0:
+            sent_message = await message.reply(response[i:i + MAX_MESSAGE_LENGTH])
         else:
             if not thread:
                 thread = await sent_message.create_thread(name=input_content[:100], auto_archive_duration=60)
-            await thread.send(msg)
+            await thread.send(response[i:i + MAX_MESSAGE_LENGTH])
+    # split_messages = split_message_preserving_code_format(response, MAX_MESSAGE_LENGTH)
+    # first_flag = True
+    # for msg in split_messages:
+    #     if first_flag:
+    #         sent_message = await message.reply(msg)
+    #         first_flag = False
+    #     else:
+    #         if not thread:
+    #             thread = await sent_message.create_thread(name=input_content[:100], auto_archive_duration=60)
+    #         await thread.send(msg)
     return
 
 async def bot_reply_stream(response_stream, message, messages, input_content, thread, MAX_MESSAGE_LENGTH):
@@ -366,7 +391,7 @@ def split_message_preserving_code_format(response, max_length):
     split_messages.append(current_message)
     return split_messages
 
-async def edit_message_preserving_code_format(last_message, new_content, max_length, current_code_lang):
+async def stream_split_preserve_code_format_1(last_message, new_content, max_length, current_code_lang):
     current_message_content = last_message.content
     message_to_add = ""
 
@@ -404,6 +429,34 @@ async def edit_message_preserving_code_format(last_message, new_content, max_len
     current_message_content += message_to_add
     await last_message.edit(content=current_message_content)
     return current_code_lang
+
+def stream_split_preserve_code_format_2(response, max_length):
+    split_responses = []
+    current_response = ""
+    code_block_open = False
+
+    for line in response.splitlines(True):
+        line_length = len(line)
+        current_length = len(current_response)
+
+        if "```" in line:
+            code_block_open = not code_block_open
+
+        if current_length + line_length > max_length:
+            if code_block_open:
+                current_response += "```\n"
+                split_responses.append(current_response)
+                current_response = "```\n" + line
+            else:
+                split_responses.append(current_response)
+                current_response = line
+        else:
+            current_response += line
+
+    if current_response:
+        split_responses.append(current_response)
+
+    return split_responses
 
 def process_lw(user_msg, test=False):
     try:
