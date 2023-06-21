@@ -29,7 +29,7 @@ except:
 SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_PUBLIC_NORMAL, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 SYSTEM_MESSAGES_OBFUSCATE = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_OBFUSCATE}
 STREAM_EXCEPTIONS = list(SYSTEM_MESSAGES_PUBLIC_OBFUSCATE.keys()) + list(SYSTEM_MESSAGES_ROOT_OBFUSCATE.keys()) + ["/timestamp"]
-ARG_LIST = {"--stream": True, "--force-truncate": False}
+ARG_LIST = {"--stream": True, "--force-truncate": False, "--read-server": 0}
 
 last_response_time = 0  # rate-limiting variable for public users
 
@@ -91,6 +91,9 @@ async def on_message(message):
                 if messages[-1]["role"] == "system":
                     messages.insert(0, messages.pop(-1))
             else:
+                last_messages = list(reversed(await utils.get_last_n_messages(message, args["--read-server"])))
+                content = '\n\n'.join([list(d.values())[0] for d in last_messages])
+                user_msg = content + "\n\n" + user_msg
                 messages.append({"role": "user", "content": user_msg})
 
             num_tokens = utils.num_tokens_from_messages(messages)

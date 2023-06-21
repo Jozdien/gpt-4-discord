@@ -16,12 +16,19 @@ def read_file_to_list(file_name):
 
 async def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
     openai.api_key = api_key
-    completion = await openai.ChatCompletion.acreate(
-        model=model,
-        messages=messages,
-        max_tokens=MAX_TOKENS,
-        stream=stream
-    )
+    if stream:
+        completion = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            max_tokens=MAX_TOKENS,
+            stream=stream
+        )
+    else:
+        completion = await openai.ChatCompletion.acreate(
+            model=model,
+            messages=messages,
+            max_tokens=MAX_TOKENS
+        )
     return completion
 
 def num_tokens_from_messages(messages, model="gpt-4"):
@@ -145,6 +152,13 @@ def check_arguments(input_string, arg_list):
         elif parts[index] == "--force-truncate":
             arg_values["--force-truncate"] = True
             index += 1
+        elif parts[index] == "--read-server":
+            if index + 1 < len(parts) and parts[index + 1].isnumeric():
+                arg_values["--read-server"] = int(parts[index + 1])
+                index += 2
+            else:
+                arg_values["--read-server"] = 5
+                index += 1
         elif parts[index] in arg_list:
             arg = parts[index]
             value = parts[index + 1] if index + 1 < len(parts) else arg_list[arg]
@@ -349,6 +363,13 @@ async def thread_history(messages, message, bot):
     if messages[0]["role"] == "system":
         messages = messages[1:] + messages[:1]
     return messages
+
+async def get_last_n_messages(message, n):
+    previous_messages = []
+    async for msg in message.channel.history(before=message, limit=n):
+        msg_dict = {msg.author.name: msg.content}
+        previous_messages.append(msg_dict)
+    return previous_messages
 
 def split_message_preserving_code_format(response, max_length):
     split_messages = []
