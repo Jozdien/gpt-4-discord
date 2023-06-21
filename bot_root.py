@@ -12,8 +12,8 @@ API_KEYS = utils.read_file_to_list('./api-key.txt')
 api_key_cycle = itertools.cycle(API_KEYS)  # Cycle through different API keys for rate limiting reasons
 
 intents = discord.Intents.default()
-intents.typing = False
-intents.presences = False
+intents.messages = True
+intents.reactions = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 MAX_MESSAGE_LENGTH = 2000
