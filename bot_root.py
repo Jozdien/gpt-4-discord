@@ -93,7 +93,8 @@ async def on_message(message):
             else:
                 last_messages = list(reversed(await utils.get_last_n_messages(message, args["--read-server"])))
                 content = '\n\n'.join([list(d.values())[0] for d in last_messages])
-                user_msg = content + "\n\n" + user_msg
+                if args["--read-server"]:
+                    user_msg = content + "\n\n" + user_msg
                 messages.append({"role": "user", "content": user_msg})
 
             num_tokens = utils.num_tokens_from_messages(messages)
