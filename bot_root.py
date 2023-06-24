@@ -29,7 +29,7 @@ except:
 SYSTEM_MESSAGES = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_PUBLIC_NORMAL, **SYSTEM_MESSAGES_ROOT_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_NORMAL}
 SYSTEM_MESSAGES_OBFUSCATE = {**SYSTEM_MESSAGES_PUBLIC_OBFUSCATE, **SYSTEM_MESSAGES_ROOT_OBFUSCATE}
 STREAM_EXCEPTIONS = list(SYSTEM_MESSAGES_PUBLIC_OBFUSCATE.keys()) + list(SYSTEM_MESSAGES_ROOT_OBFUSCATE.keys()) + ["/timestamp"]
-ARG_LIST = {"--stream": True, "--force-truncate": False, "--read-server": 0}
+ARG_LIST = {"--stream": True, "--force-truncate": False, "--read-server": 0, "--echo": False}
 
 last_response_time = 0  # rate-limiting variable for public users
 
@@ -66,6 +66,7 @@ async def on_message(message):
                 input_content = await utils.read_attachments(message, input_content)
 
             keyword, args, user_msg = utils.parse_input_content(input_content, SYSTEM_MESSAGES, ARG_LIST)
+            # print(args)
 
             BOT_STREAMS = args["--stream"]
 
@@ -108,6 +109,11 @@ async def on_message(message):
             else:
                 print(f"Number of tokens in the prompt: {num_tokens}")
                 MAX_TOKENS = 8180 - num_tokens  # 8192 as the default GPT-4 token limit, sometimes num_tokens isn't exact, hence leeway; also 8192 exactly triggers an error
+
+            if args["--echo"]:
+                await message.reply(messages)
+                await message.remove_reaction('\N{HOURGLASS}', bot.user)
+                return
 
             # if BOT_STREAMS set to False, or if keyword is one that requires modification after generation, no streaming
             if keyword in STREAM_EXCEPTIONS or not BOT_STREAMS:
