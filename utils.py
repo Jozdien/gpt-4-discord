@@ -159,6 +159,9 @@ def check_arguments(input_string, arg_list):
             else:
                 arg_values["--read-server"] = 5
                 index += 1
+        elif parts[index] == "--include-names":
+            arg_values["--include-names"] = True
+            index += 1
         elif parts[index] == "--echo":
             arg_values["--echo"] = True
             index += 1
