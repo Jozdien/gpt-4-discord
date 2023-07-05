@@ -15,7 +15,9 @@ def read_file_to_list(file_name):
     return [line.strip() for line in lines]
 
 async def create_response(api_key, messages, MAX_TOKENS, model="gpt-4", stream = False):
-    openai.api_key = api_key
+    openai.api_key = api_key["key"]
+    openai.api_base = api_key["base"]
+    openai.organization = api_key["org"]
     if stream:
         completion = openai.ChatCompletion.create(
             model=model,

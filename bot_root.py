@@ -8,7 +8,7 @@ from discord.ext import commands
 
 with open("discord-token.txt", "r") as f:
     DISCORD_TOKEN = f.read().strip()
-API_KEYS = utils.read_file_to_list('./api-key.txt')
+from api_keys import API_KEYS
 api_key_cycle = itertools.cycle(API_KEYS)  # Cycle through different API keys for rate limiting reasons
 
 intents = discord.Intents.default()

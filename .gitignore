@@ -5,6 +5,6 @@ bot_log.txt
 full_log.txt
 stream_log.txt
 bot_log_droplet.txt
-api-key.txt
+api_keys.py
 discord-token.txt
 root_modes.py
