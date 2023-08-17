@@ -181,12 +181,43 @@ def check_arguments(input_string, arg_list):
 async def response_errors(e, message, thread, bot):
     # No multimodal access to GPT-4
     if repr(e) == "TypeError('Object of type bytes is not JSON serializable')":
-        await handle_error(message, "Sorry, you don't have multimodal access with me yet.", thread, bot)
+        await handle_error(
+            message,
+            "Sorry, you don't have multimodal access with me yet.",
+            thread,
+            bot
+        )
         return
     # Rate limiting
     if repr(e) == "RateLimitError(message='The server had an error while processing your request. Sorry about that!', http_status=429, request_id=None)":
-        await handle_error(message, "Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!", thread, bot)
+        await handle_error(
+            message,
+            "Sorry, you're sending a lot of requests, I need to cool down. Please resend your request after a few seconds!",
+            thread,
+            bot
+        )
         return
+    if repr(e) == "RateLimitError(message='You exceeded your current quota, please check your plan and billing details.', http_status=429, request_id=None)":
+        await handle_error(
+            message, 
+            ("One or more of my API keys seems to have hit their hard cap for the month. "
+            "Trying again might work, but please let my maker know about this. "
+            "If you're interested in seeing this error message less, adding more API keys is always appreciated!"),
+            thread, 
+            bot
+        )
+        return
+    if repr(e).startswith("AuthenticationError(message='Incorrect API key provided"):
+        await handle_error(
+            message,
+            ("One of my API keys seems to have stopped working. "
+            "Trying again might work, but please let my maker know about this. "
+            "If you're interested in seeing this error message less, adding more API keys is always appreciated!"),
+            thread,
+            bot
+        )
+        return
+    print(repr(e))
     print(traceback.format_exc())
     await handle_error(message, "An error has occurred while generating the response, please check my logs!", thread, bot)
     return
