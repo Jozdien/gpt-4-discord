@@ -372,6 +372,17 @@ def log(message, messages, response, completion, stream=False):
 
 async def thread_history(messages, message, bot):
     num_tokens = num_tokens_from_messages(messages)
+    
+    async def thumbs_down_by_author(reactions, author):
+        """
+        Checks for a thumbs-down (👎) reaction by the author
+        """
+        for reaction in reactions:
+            users = [user async for user in reaction.users()] 
+            if reaction.emoji == '👎' and author in users:
+                return True
+        return False
+
     async for thread_message in message.channel.history(limit=200):
         start_message_flag = False
         if str(thread_message.type) == "MessageType.thread_starter_message":  # by default the thread starter message's content returns an empty string
@@ -383,11 +394,15 @@ async def thread_history(messages, message, bot):
                 continue
             if (num_tokens + num_tokens_from_messages(new_message)) > 8100:
                 return messages
+            if await thumbs_down_by_author(thread_message.reactions, message.author):
+                continue
             messages += new_message
         elif thread_message.author == bot.user:
             new_message = [{"role": "assistant", "content": thread_message.content}]
             if (num_tokens + num_tokens_from_messages(new_message)) > 7500:
                 return messages
+            if await thumbs_down_by_author(thread_message.reactions, message.author):
+                continue
             messages += new_message
             if str(thread_message.type) == "MessageType.reply":  # need the prompt for the bot response for proper context-setting
                 parent = thread_message.reference.resolved
